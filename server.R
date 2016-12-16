@@ -4,6 +4,19 @@ library(audio)
 library(e1071)
 library(kernlab)
 
+# self
+path <- "/Users/hyeonjin/workspace/r/emotion-recognizer/voice"
+path.model.file = "/Users/hyeonjin/workspace/r/emotion-recognizer/model/emrec.model.RData"
+path.max.file   = "/Users/hyeonjin/workspace/r/emotion-recognizer/model/emrec.max.RData"
+path.min.file   = "/Users/hyeonjin/workspace/r/emotion-recognizer/model/emrec.min.RData"
+
+# rml
+#path <- "/Users/hyeonjin/Desktop/rml_wav/renamed"
+#path.model.file <- "/Users/hyeonjin/Desktop/rml_wav/rml.model"
+#path.max.file <- "/Users/hyeonjin/Desktop/rml_wav/rml.max"
+#path.min.file <- "/Users/hyeonjin/Desktop/rml_wav/rml.min"
+
+
 # functions
 
 normalize <- function(x) {
@@ -31,15 +44,11 @@ jitter.relative <- function (wave) {
   jitter.ab / denominator
 }
 
-path.model.file = "/Users/hyeonjin/workspace/r/emotion-recognizer/model/emrec.model.RData"
-path.max.file   = "/Users/hyeonjin/workspace/r/emotion-recognizer/model/emrec.max.RData"
-path.min.file   = "/Users/hyeonjin/workspace/r/emotion-recognizer/model/emrec.min.RData"
 
 #train.waves <- function (train.data.path) {
 if (!file.exists(path.model.file)) {
   
   # set path of voice files
-  path <- "/Users/hyeonjin/workspace/r/emotion-recognizer/voice"
   setwd(path)
   
   # read the list of voice files
@@ -71,7 +80,7 @@ if (!file.exists(path.model.file)) {
   
   # train
   train.data <- cbind(emotion=wav.emotion, wav.mfcc.mean)
-  f <- emotion ~ .^2
+  f <- emotion ~ (mfcc.x1 + mfcc.x3 + mfcc.x4 + mfcc.x6 + jitter.ab)^2
   wav.ksvm <- ksvm(f, data = train.data, prob.model = T)
   saveRDS(wav.ksvm, path.model.file)
   
@@ -80,17 +89,7 @@ if (!file.exists(path.model.file)) {
   wav.mfcc.mean.max <- readRDS(path.max.file)
   wav.mfcc.mean.min <- readRDS(path.min.file)
 }
-  
 
-#if (!file.exists(path.model.file)) {
-#  training <- train.waves("/Users/hyeonjin/workspace/r/emotion-recognizer/voice")
-#  ihvy.model = training[1]
-#  mfcc.max = training[2]
-#  mfcc.min = training[3]
-#  saveRDS(ihvy.model, path.model.file)
-#} else {
-#  ihvy.model = readRDS(path.model.file)
-#}
   
   
 # returns [class, pie]
@@ -142,7 +141,13 @@ shinyServer(function(input, output) {
     
     wav.ksvm.pred.prob <- result()
     cls <- colnames(wav.ksvm.pred.prob)[which(wav.ksvm.pred.prob == max(wav.ksvm.pred.prob))]
-    cls
+    if (cls == "sup") as.symbol("Surprised")
+    else if (cls == "hap") as.symbol("Happy")
+    else if (cls == "ang") as.symbol("Angry")
+    else if (cls == "fear") as.symbol("Fear")
+    else if (cls == "flat") as.symbol("Flat")
+    else if (cls == "sad") as.symbol("Sad")
+    else as.symbol(cls)
   })
   
   output$pie.result <- renderPlot({
