@@ -33,4 +33,7 @@ vignettes/*.pdf
 *.knit.md
 
 # Voice Files
-/voice/
+/voice/*
+
+# Model Files
+/model/*
