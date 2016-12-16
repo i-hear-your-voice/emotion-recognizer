@@ -10,12 +10,6 @@ path.model.file = "/Users/hyeonjin/workspace/r/emotion-recognizer/model/emrec.mo
 path.max.file   = "/Users/hyeonjin/workspace/r/emotion-recognizer/model/emrec.max.RData"
 path.min.file   = "/Users/hyeonjin/workspace/r/emotion-recognizer/model/emrec.min.RData"
 
-# rml
-#path <- "/Users/hyeonjin/Desktop/rml_wav/renamed"
-#path.model.file <- "/Users/hyeonjin/Desktop/rml_wav/rml.model"
-#path.max.file <- "/Users/hyeonjin/Desktop/rml_wav/rml.max"
-#path.min.file <- "/Users/hyeonjin/Desktop/rml_wav/rml.min"
-
 
 # functions
 
@@ -45,9 +39,15 @@ jitter.relative <- function (wave) {
 }
 
 
-#train.waves <- function (train.data.path) {
-if (!file.exists(path.model.file)) {
-  
+if (file.exists(path.model.file)) {
+ 
+  # load data if its file exists
+  wav.ksvm <- readRDS(path.model.file)
+  wav.feature.max <- readRDS(path.max.file)
+  wav.feature.min <- readRDS(path.min.file)
+
+} else {
+ 
   # set path of voice files
   setwd(path)
   
@@ -63,36 +63,32 @@ if (!file.exists(path.model.file)) {
   
   # get mfcc data
   wav.mfcc <- sapply(wav.obj, function(x) melfcc(x))
-  wav.mfcc.mean <- sapply(wav.mfcc, function(x) apply(x, 2, mean)) 
-  wav.mfcc.mean <- data.frame(mfcc=t(wav.mfcc.mean))
+  wav.feature <- sapply(wav.mfcc, function(x) apply(x, 2, mean)) 
+  wav.feature <- data.frame(mfcc=t(wav.feature))
   
   # add jitter
-  wav.mfcc.mean$jitter.ab <- sapply(wav.obj, jitter.absolute)
-  wav.mfcc.mean$jitter.re <- sapply(wav.obj, jitter.relative)
-  
-  wav.mfcc.mean.max <- sapply(wav.mfcc.mean, max)
-  wav.mfcc.mean.min <- sapply(wav.mfcc.mean, min)
-  saveRDS(wav.mfcc.mean.max, path.max.file)
-  saveRDS(wav.mfcc.mean.min, path.min.file)
+  wav.feature$jitter.ab <- sapply(wav.obj, jitter.absolute)
+  wav.feature$jitter.re <- sapply(wav.obj, jitter.relative)
+
+  # set max and min of feature before normalize
+  wav.feature.max <- sapply(wav.feature, max)
+  wav.feature.min <- sapply(wav.feature, min)
+  saveRDS(wav.feature.max, path.max.file)
+  saveRDS(wav.feature.min, path.min.file)
   
   # normalize
-  wav.mfcc.mean <- as.data.frame(lapply(wav.mfcc.mean, normalize))
+  wav.feature <- as.data.frame(lapply(wav.feature, normalize))
   
   # train
-  train.data <- cbind(emotion=wav.emotion, wav.mfcc.mean)
+  train.data <- cbind(emotion=wav.emotion, wav.feature)
   f <- emotion ~ (mfcc.x1 + mfcc.x3 + mfcc.x4 + mfcc.x6 + jitter.ab)^2
   wav.ksvm <- ksvm(f, data = train.data, prob.model = T)
   saveRDS(wav.ksvm, path.model.file)
   
-} else {
-  wav.ksvm <- readRDS(path.model.file)
-  wav.mfcc.mean.max <- readRDS(path.max.file)
-  wav.mfcc.mean.min <- readRDS(path.min.file)
-}
+}  
+ 
 
-  
-  
-# returns [class, pie]
+# returns probabilities
 recognize.emotion <- function (test.file.path) {
   
   ###test
@@ -106,19 +102,19 @@ recognize.emotion <- function (test.file.path) {
   # get mfcc data
   test.wav <- melfcc(test.wav.obj)
   test.wav <- apply(test.wav, 2, mean)
-  test.wav.mean <- data.frame(mfcc=t(test.wav))
+  test.wav.feature <- data.frame(mfcc=t(test.wav))
   
   # add jitter
-  test.wav.mean$jitter.ab <- jitter.absolute(test.wav.obj)
-  test.wav.mean$jitter.re <- jitter.relative(test.wav.obj)
+  test.wav.feature$jitter.ab <- jitter.absolute(test.wav.obj)
+  test.wav.feature$jitter.re <- jitter.relative(test.wav.obj)
   
   # normalize
-  test.wav.mean <- ((test.wav.mean - wav.mfcc.mean.min) / (wav.mfcc.mean.max - wav.mfcc.mean.min))
+  test.wav.feature <- ((test.wav.feature - wav.feature.min) / (wav.feature.max - wav.feature.min))
   
-  wav.ksvm.pred.prob <- predict(model, test.wav.mean, type = "p")
-  #wav.ksvm.pred <- predict(wav.ksvm, test.data)
+  test.wav.pred.prob <- predict(model, test.wav.feature, type = "p")
+  #wav.pred <- predict(wav.ksvm, test.data)
   
-  wav.ksvm.pred.prob
+  test.wav.pred.prob
 }
 
 #test
@@ -139,8 +135,8 @@ shinyServer(function(input, output) {
       return(as.symbol("Please select audio file"))
     }
     
-    wav.ksvm.pred.prob <- result()
-    cls <- colnames(wav.ksvm.pred.prob)[which(wav.ksvm.pred.prob == max(wav.ksvm.pred.prob))]
+    wav.pred.prob <- result()
+    cls <- colnames(wav.pred.prob)[which(wav.pred.prob == max(wav.pred.prob))]
     if (cls == "sup") as.symbol("Surprised")
     else if (cls == "hap") as.symbol("Happy")
     else if (cls == "ang") as.symbol("Angry")
@@ -157,8 +153,8 @@ shinyServer(function(input, output) {
       return(pie(c(1)))
     }
     
-    wav.ksvm.pred.prob <- result()
-    pie <- pie(wav.ksvm.pred.prob, labels=colnames(wav.ksvm.pred.prob))
+    wav.pred.prob <- result()
+    pie <- pie(wav.pred.prob, labels=colnames(wav.pred.prob))
     pie
   })
 })
