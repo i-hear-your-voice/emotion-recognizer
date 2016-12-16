@@ -29,6 +29,7 @@ jitter.relative <- function (wave) {
 }
 
 
+
 # set path of voice files
 path <- "/Users/hyeonjin/workspace/r/emotion-recognizer/voice"
 #path <- "/Users/hyeonjin/Downloads/rml/all_lang"
